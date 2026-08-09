@@ -1,11 +1,11 @@
 [package]
-name = "clash-verge"
-version = "2.5.3"
-description = "clash verge"
-authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]
+name = "bestvpn-desktop"
+version = "1.0.0"
+description = "BestVPN Desktop"
+authors = ["BestVPN"]
 license = "GPL-3.0-only"
-repository = "https://github.com/clash-verge-rev/clash-verge-rev.git"
-default-run = "clash-verge"
+repository = "https://github.com/<your-org>/bestvpn-desktop"
+default-run = "bestvpn-desktop"
 build = "build.rs"
 edition = "2024"
 rust-version = "1.95"
@@ -25,7 +25,7 @@ clippy = ["tauri/test"]
 tracing = []
 
 [package.metadata.bundle]
-identifier = "io.github.clash-verge-rev.clash-verge-rev"
+identifier = "com.getmybestvpn.desktop"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
