@@ -352,7 +352,7 @@ impl PrfItem {
                 }
             }
             None => {
-                Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "Remote File".into()))
+                Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "BestVPN".into()))
             }
         };
         let update_interval = match update_interval {
@@ -378,7 +378,7 @@ impl PrfItem {
         let file = format!("{uid}.yaml").into();
         let name = name
             .map(|s| s.to_owned())
-            .unwrap_or_else(|| filename.map(|s| s.into()).unwrap_or_else(|| "Remote File".into()));
+            .unwrap_or_else(|| filename.map(|s| s.into()).unwrap_or_else(|| "BestVPN".into()));
         let data = resp.text_with_charset()?;
 
         // process the charset "UTF-8 with BOM"
@@ -440,6 +440,33 @@ impl PrfItem {
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
         })
+    }
+
+    /// ## One-time local snapshot
+    /// Fetch a subscription URL once and store the result as a local profile, so
+    /// the app never re-fetches the URL afterwards. Intended for short-lived,
+    /// single-use import tokens.
+    pub async fn from_url_one_time(
+        url: &str,
+        name: Option<&String>,
+        desc: Option<&String>,
+    ) -> Result<Self> {
+        let mut item = Self::from_url(url, name, desc, None).await?;
+
+        // Keep the fetched content but drop the remote identity and update knobs.
+        let uid = help::get_uid("L").into();
+        let file = format!("{uid}.yaml").into();
+        item.uid = Some(uid);
+        item.file = Some(file);
+        item.itype = Some("local".into());
+        item.url = None;
+        item.home = None;
+        if let Some(option) = item.option.as_mut() {
+            option.allow_auto_update = None;
+            option.update_interval = None;
+        }
+
+        Ok(item)
     }
 
     /// ## Merge type (enhance)
