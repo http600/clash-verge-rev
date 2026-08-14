@@ -446,11 +446,7 @@ impl PrfItem {
     /// Fetch a subscription URL once and store the result as a local profile, so
     /// the app never re-fetches the URL afterwards. Intended for short-lived,
     /// single-use import tokens.
-    pub async fn from_url_one_time(
-        url: &str,
-        name: Option<&String>,
-        desc: Option<&String>,
-    ) -> Result<Self> {
+    pub async fn from_url_one_time(url: &str, name: Option<&String>, desc: Option<&String>) -> Result<Self> {
         let mut item = Self::from_url(url, name, desc, None).await?;
 
         // Keep the fetched content but drop the remote identity and update knobs.
