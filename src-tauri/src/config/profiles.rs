@@ -236,6 +236,44 @@ impl IProfiles {
         Ok(())
     }
 
+    /// overwrite the first item that shares `name` and `itype` with `item`.
+    ///
+    /// Keeps the existing `uid`/`file` so the current selection and any references
+    /// (merge/script/rules/proxies/groups uids) stay valid and no orphan file is left
+    /// behind. Returns `true` when an item was overwritten, `false` otherwise.
+    pub async fn overwrite_item_by_name(&mut self, item: &mut PrfItem) -> Result<bool> {
+        let name = item.name.clone();
+        let itype = item.itype.clone();
+
+        let Some(items) = self.items.as_mut() else {
+            return Ok(false);
+        };
+
+        let Some(existing) = items.iter_mut().find(|each| each.name == name && each.itype == itype) else {
+            return Ok(false);
+        };
+
+        // Reuse the existing identity so references stay valid.
+        item.uid = existing.uid.clone();
+        item.file = existing.file.clone();
+
+        // Write the freshly fetched data over the existing file.
+        if let Some(file_data) = item.file_data.take() {
+            let file = item
+                .file
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("file field is required when file_data is provided"))?;
+            let path = dirs::app_profiles_dir()?.join(file.as_str());
+
+            fs::write(&path, file_data.as_bytes())
+                .await
+                .with_context(|| format!("failed to write to file \"{file}\""))?;
+        }
+
+        *existing = item.clone();
+        Ok(true)
+    }
+
     /// reorder items
     pub async fn reorder(&mut self, active_id: &String, over_id: &String) -> Result<()> {
         let mut items = self.items.take().unwrap_or_default();
@@ -622,6 +660,16 @@ pub(super) async fn profiles_append_item_to_safe(profiles: &Draft<IProfiles>, it
         .with_data_modify(|mut profiles| async move {
             profiles.append_item(item).await?;
             Ok((profiles, ()))
+        })
+        .await
+}
+
+pub async fn profiles_overwrite_item_safe(item: &mut PrfItem) -> Result<bool> {
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let overwritten = profiles.overwrite_item_by_name(item).await?;
+            Ok((profiles, overwritten))
         })
         .await
 }

@@ -6,8 +6,8 @@ use crate::{
     config::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
-            PROFILE_WRITE_LOCK, profiles_append_item_with_filedata_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_save_file_safe,
+            PROFILE_WRITE_LOCK, profiles_append_item_with_filedata_safe, profiles_overwrite_item_safe,
+            profiles_patch_item_safe, profiles_reorder_safe, profiles_save_file_safe,
         },
         profiles_append_item_safe,
     },
@@ -81,7 +81,23 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         }
     };
 
-    if let Err(e) = profiles_append_item_safe(item).await {
+    // 同名订阅直接覆盖，而不是追加重复项
+    let overwritten = match profiles_overwrite_item_safe(item).await {
+        Ok(overwritten) => overwritten,
+        Err(e) => {
+            logging!(error, Type::Cmd, "[导入订阅] 覆盖同名订阅失败: {}", e);
+            return Err(coded_error("PROFILE_IMPORT_FAILED", e));
+        }
+    };
+
+    if overwritten {
+        logging!(
+            info,
+            Type::Cmd,
+            "[导入订阅] 已覆盖同名订阅: {}",
+            item.name.as_deref().unwrap_or("")
+        );
+    } else if let Err(e) = profiles_append_item_safe(item).await {
         logging!(error, Type::Cmd, "[导入订阅] 保存配置失败: {}", e);
         return Err(coded_error("PROFILE_IMPORT_FAILED", e));
     }
