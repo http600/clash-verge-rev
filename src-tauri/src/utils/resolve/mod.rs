@@ -9,7 +9,7 @@ use crate::{
         handle::Handle,
         hotkey::Hotkey,
         logger::Logger,
-        service::{SERVICE_MANAGER, ServiceManager},
+        service::{SERVICE_MANAGER, ServiceManager, ServiceStatus},
         tray::Tray,
     },
     feat,
@@ -62,6 +62,8 @@ pub fn resolve_setup_async() {
             init_verge_config().await;
         }
         Config::verify_config_initialization().await;
+
+        ensure_tun_mode_and_service().await;
 
         let core_init = AsyncHandler::spawn(|| async {
             init_core_manager().await;
@@ -188,6 +190,52 @@ pub(super) async fn init_service_manager() {
     clash_verge_service_ipc::set_config(Some(ServiceManager::config())).await;
 
     SERVICE_MANAGER.detect_startup_status().await;
+}
+
+/// End-user mode: TUN is the default transport for this fork, so make sure it is switched on
+/// and that the privileged Service backing it is installed before the Core starts. A fresh
+/// install should "just work" after the user imports a subscription.
+pub(super) async fn ensure_tun_mode_and_service() {
+    if let Err(error) = enable_tun_mode_if_off().await {
+        logging!(warn, Type::Setup, "failed to auto-enable TUN mode: {error:#}");
+    }
+    if let Err(error) = ensure_tun_service().await {
+        logging!(warn, Type::Setup, "failed to auto-provision TUN service: {error:#}");
+    }
+}
+
+async fn enable_tun_mode_if_off() -> Result<()> {
+    let verge = Config::verge().await;
+    if verge.latest_arc().enable_tun_mode.unwrap_or(false) {
+        return Ok(());
+    }
+    verge.edit_draft(|d| {
+        d.enable_tun_mode = Some(true);
+    });
+    verge.apply();
+    let verge_data = verge.data_arc();
+    verge_data.save_file().await?;
+    logging!(info, Type::Setup, "TUN mode auto-enabled at startup");
+    Ok(())
+}
+
+async fn ensure_tun_service() -> Result<()> {
+    match SERVICE_MANAGER.current().await {
+        ServiceStatus::Ready => Ok(()),
+        ServiceStatus::NotInstalled => {
+            logging!(info, Type::Setup, "TUN service not installed; installing at startup");
+            SERVICE_MANAGER
+                .handle_service_status(ServiceStatus::InstallRequired)
+                .await
+        }
+        ServiceStatus::NeedsReinstall | ServiceStatus::Unavailable(_) => {
+            logging!(info, Type::Setup, "TUN service unusable; repairing at startup");
+            SERVICE_MANAGER
+                .handle_service_status(ServiceStatus::ForceReinstallRequired)
+                .await
+        }
+        _ => Ok(()),
+    }
 }
 
 pub(super) async fn init_core_manager() -> bool {

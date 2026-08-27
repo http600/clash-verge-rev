@@ -110,6 +110,9 @@ const Layout = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { language } = verge ?? {}
   const navCollapsed = verge?.collapse_navbar ?? false
+  // End-user mode: only Home is shown in the sidebar unless `simple_mode: false` is set in
+  // verge.yaml (used for troubleshooting).
+  const simpleMode = verge?.simple_mode !== false
   const { switchLanguage } = useI18n()
   const navigate = useNavigate()
   const themeReady = useMemo(() => Boolean(theme), [theme])
@@ -165,6 +168,14 @@ const Layout = () => {
     [patchVerge],
   )
 
+  // End-user mode hides every navigation item except Home. Power users can flip
+  // `simple_mode: false` in verge.yaml to get the full navigation back for troubleshooting.
+  const visibleNavItems = useMemo(
+    () =>
+      simpleMode ? navItems.filter((item) => item.path === '/') : navItems,
+    [simpleMode],
+  )
+
   const {
     menuOrder,
     navItemMap,
@@ -173,7 +184,7 @@ const Layout = () => {
     resetMenuOrder,
   } = useNavMenuOrder({
     enabled: menuUnlocked,
-    items: navItems,
+    items: visibleNavItems,
     storedOrder: verge?.menu_order,
     onOptimisticUpdate: handleMenuOrderOptimisticUpdate,
     onPersist: handleMenuOrderPersist,

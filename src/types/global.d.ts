@@ -885,6 +885,7 @@ interface IVergeConfig {
   menu_order?: string[]
   notice_position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
   collapse_navbar?: boolean
+  simple_mode?: boolean
   tray_icon?: 'monochrome' | 'colorful'
   common_tray_icon?: boolean
   sysproxy_tray_icon?: boolean
