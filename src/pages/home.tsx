@@ -235,9 +235,26 @@ const HomePage = () => {
   // 设置弹窗的状态
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // 卡片显示状态
-  const homeCards =
+  // End-user simple mode hides developer-facing info cards on Home.
+  const simpleMode = verge?.simple_mode !== false
+
+  // User-saved card visibility (unaffected by simple mode; used by the settings dialog).
+  const configuredCards =
     (verge?.home_cards as HomeCardsSettings | undefined) ?? DEFAULT_HOME_CARDS
+
+  // Effective card visibility used for rendering.
+  const homeCards = useMemo(() => {
+    if (!simpleMode) {
+      return configuredCards
+    }
+    return {
+      ...configuredCards,
+      test: false, // Website Tests
+      ip: false, // IP Information
+      clashinfo: false, // Clash Info
+      systeminfo: false, // System Info
+    }
+  }, [configuredCards, simpleMode])
 
   // 文档链接函数
   const toGithubDoc = useLockFn(() => {
@@ -352,9 +369,9 @@ const HomePage = () => {
       {/* 首页设置弹窗 */}
       {settingsOpen && (
         <HomeSettingsDialog
-          key={serializeCardFlags(homeCards)}
+          key={serializeCardFlags(configuredCards)}
           onClose={() => setSettingsOpen(false)}
-          homeCards={homeCards}
+          homeCards={configuredCards}
         />
       )}
     </BasePage>
