@@ -36,6 +36,7 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
+import { useVerge } from '@/hooks/use-verge'
 import {
   getNextUpdateTime,
   readProfileFile,
@@ -97,6 +98,9 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   } = props
 
   const { t } = useTranslation()
+  const { verge } = useVerge()
+  // End-user mode hides the right-click context menu on profile items.
+  const simpleMode = verge?.simple_mode !== false
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const loadingCache = useLoadingCache()
@@ -649,10 +653,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           onSelect(false)
         }}
         onContextMenu={(event) => {
+          event.preventDefault()
+          if (simpleMode) {
+            return
+          }
           const { clientX, clientY } = event
           setPosition({ top: clientY, left: clientX })
           setAnchorEl(event.currentTarget as HTMLElement)
-          event.preventDefault()
         }}
       >
         {activating && (
