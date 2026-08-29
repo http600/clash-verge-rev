@@ -30,6 +30,14 @@ import { fileURLToPath } from 'node:url'
 import { log_error, log_info, log_success } from './utils.mjs'
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..')
+const RUSTUP_BIN = join(
+  process.env.HOME ?? process.env.USERPROFILE ?? '',
+  '.cargo',
+  'bin',
+)
+const TOOL_ENV = {
+  PATH: `${RUSTUP_BIN}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`,
+}
 
 // ---------------------------------------------------------------------------
 // Platform / target resolution
@@ -71,9 +79,23 @@ const HOST_PLATFORM = { darwin: 'macos', win32: 'windows', linux: 'linux' }[
 /** node `process.arch` -> our arch name. */
 const HOST_ARCH = { x64: 'x64', arm64: 'arm64' }[process.arch]
 
+/** Detect the Rust host triple (e.g. `x86_64-apple-darwin`) from `rustc -vV`. */
+function getHostTriple() {
+  const result = spawnSync('rustc', ['-vV'], {
+    cwd: ROOT,
+    env: { ...process.env, ...TOOL_ENV },
+    encoding: 'utf8',
+  })
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+  const match = output.match(/host:\s*(\S+)/)
+  return match ? match[1] : null
+}
+
 /** Directory that will hold bundles for a given target + cargo profile. */
-const BUNDLE_DIR = (target, profile) =>
-  join(ROOT, 'target', target, profile, 'bundle')
+const BUNDLE_DIR = (target, profile, isNative) =>
+  isNative
+    ? join(ROOT, 'target', profile, 'bundle')
+    : join(ROOT, 'target', target, profile, 'bundle')
 
 function fail(message) {
   log_error(message)
@@ -197,6 +219,29 @@ if (targetOS !== HOST_PLATFORM) {
   )
 }
 
+const hostTriple = getHostTriple()
+const isNative = hostTriple === null || hostTriple === target
+
+if (!isNative) {
+  log_info(
+    `Cross-arch build: host = ${hostTriple}, target = ${target}. ` +
+      `This requires the target's Rust std library to be installed.`,
+  )
+  // Best-effort: install the target via rustup when it is the active toolchain.
+  // (If `rustc` on PATH is e.g. a Homebrew install, this won't help and the
+  // build will fail with cargo's own clear error.)
+  const rustup = spawnSync('rustup', ['target', 'add', target], {
+    cwd: ROOT,
+    env: { ...process.env, ...TOOL_ENV },
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  })
+  if (rustup.status !== 0) {
+    log_error(`Could not install Rust target ${target}. Install it manually (` +
+      `rustup target add ${target}) or build for the host arch instead.`)
+  }
+}
+
 if (!existsSync(join(ROOT, 'node_modules'))) {
   log_info('node_modules not found; installing dependencies…')
   run('pnpm', ['install'])
@@ -204,7 +249,10 @@ if (!existsSync(join(ROOT, 'node_modules'))) {
 
 // 1. Download the matching mihomo core + service binaries for the target.
 if (!options.skipPrebuild) {
-  const prebuildArgs = ['run', 'prebuild', target]
+  const prebuildArgs = ['run', 'prebuild']
+  if (!isNative) {
+    prebuildArgs.push(target)
+  }
   if (options.force) {
     prebuildArgs.push('--force')
   }
@@ -212,17 +260,23 @@ if (!options.skipPrebuild) {
 }
 
 // 2. Build the Tauri app (frontend is compiled by the beforeBuildCommand hook).
-const buildArgs = ['exec', 'tauri', 'build', '--target', target]
+const buildArgs = ['exec', 'tauri', 'build']
+if (!isNative) {
+  buildArgs.push('--target', target)
+}
 if (options.profile === 'fast') {
   buildArgs.push('--', '--profile', 'fast-release')
 } else if (options.profile !== 'release') {
   fail(`Unknown profile: ${options.profile} (expected "release" or "fast")`)
 }
-run('pnpm', buildArgs, { NODE_OPTIONS: '--max-old-space-size=4096' })
+run('pnpm', buildArgs, {
+  ...TOOL_ENV,
+  NODE_OPTIONS: '--max-old-space-size=4096',
+})
 
 // 3. Report the outputs.
 log_success('Build finished.')
-log_info(`Bundles are under: ${BUNDLE_DIR(target, options.profile)}`)
+log_info(`Bundles are under: ${BUNDLE_DIR(target, options.profile, isNative)}`)
 if (targetOS === 'macos') {
   log_info('  macOS:  bundle/macos/*.app  and  bundle/dmg/*.dmg')
 } else if (targetOS === 'windows') {

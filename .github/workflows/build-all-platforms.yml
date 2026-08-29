@@ -1,0 +1,95 @@
+name: Build All Platforms
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Cargo build profile
+        required: true
+        type: choice
+        default: release
+        options:
+          - release
+          - fast
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-all-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: bestvpn-macos-arm64
+            bundles: target/aarch64-apple-darwin/${{ inputs.profile }}/bundle/dmg/*.dmg
+          - name: macOS Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: bestvpn-macos-x64
+            bundles: target/x86_64-apple-darwin/${{ inputs.profile }}/bundle/dmg/*.dmg
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: bestvpn-windows-x64
+            bundles: target/${{ inputs.profile }}/bundle/nsis/*.exe
+          - name: Linux x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: bestvpn-linux-x64
+            bundles: |
+              target/${{ inputs.profile }}/bundle/deb/*.deb
+              target/${{ inputs.profile }}/bundle/rpm/*.rpm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux bundle dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.19.0
+          cache: pnpm
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer bundles
+        run: node scripts/build.mjs --target ${{ matrix.target }} --profile ${{ inputs.profile }}
+        env:
+          HUSKY: '0'
+          CARGO_INCREMENTAL: '0'
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.bundles }}
+          if-no-files-found: error
