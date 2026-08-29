@@ -41,14 +41,14 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: bestvpn-windows-x64
-            bundles: target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/nsis/*.exe
+            bundles: target/x86_64-pc-windows-msvc/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/nsis/*.exe
           - name: Linux x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: bestvpn-linux-x64
             bundles: |
-              target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/deb/*.deb
-              target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/rpm/*.rpm
+              target/x86_64-unknown-linux-gnu/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/deb/*.deb
+              target/x86_64-unknown-linux-gnu/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/rpm/*.rpm
 
     steps:
       - name: Check out repository
