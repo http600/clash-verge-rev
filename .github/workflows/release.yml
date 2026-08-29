@@ -16,7 +16,7 @@ env:
 concurrency:
   # only allow per workflow per commit (and not pr) to run at a time
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/bestvpn' }}
 
 jobs:
   check_tag_version:
@@ -28,19 +28,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if tag is from main branch
+      - name: Check if tag is from bestvpn branch
         run: |
           TAG_REF="${GITHUB_REF##*/}"
-          echo "Checking if tag $TAG_REF is from main branch..."
+          echo "Checking if tag $TAG_REF is from bestvpn branch..."
 
           TAG_COMMIT=$(git rev-list -n 1 $TAG_REF)
-          MAIN_COMMITS=$(git rev-list origin/main)
+          MAIN_COMMITS=$(git rev-list origin/bestvpn)
 
           if echo "$MAIN_COMMITS" | grep -q "$TAG_COMMIT"; then
-            echo "✅ Tag $TAG_REF is from main branch"
+            echo "✅ Tag $TAG_REF is from bestvpn branch"
           else
-            echo "❌ Tag $TAG_REF is not from main branch"
-            echo "This release workflow only accepts tags from main branch."
+            echo "❌ Tag $TAG_REF is not from bestvpn branch"
+            echo "This release workflow only accepts tags from bestvpn branch."
             exit 1
           fi
 
