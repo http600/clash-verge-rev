@@ -1,6 +1,6 @@
 {
   "name": "bestvpn-desktop",
-  "version": "2.5.3",
+  "version": "v26.08.29",
   "license": "GPL-3.0-only",
   "scripts": {
     "prepare": "husky || true",
