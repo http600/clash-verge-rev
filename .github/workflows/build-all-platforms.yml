@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to draft (e.g. v26.08.29)'
+        description: 'Release tag to draft (e.g. v26.08.29.1000)'
         required: true
         type: string
       profile:

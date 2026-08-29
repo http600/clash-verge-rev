@@ -1,6 +1,6 @@
 [package]
 name = "bestvpn-desktop"
-version = "1.0.0"
+version = "26.8.29+1000"
 description = "BestVPN Desktop"
 authors = ["BestVPN"]
 license = "GPL-3.0-only"
