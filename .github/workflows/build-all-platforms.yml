@@ -3,6 +3,10 @@ name: Build All Platforms
 on:
   workflow_dispatch:
     inputs:
+      tag_name:
+        description: 'Release tag to draft (e.g. v26.08.29)'
+        required: true
+        type: string
       profile:
         description: Cargo build profile
         required: true
@@ -13,15 +17,29 @@ on:
           - fast
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: build-all-platforms-${{ github.ref }}
+  group: build-all-platforms-${{ github.ref }}-${{ inputs.tag_name }}
   cancel-in-progress: true
 
 jobs:
+  draft-release:
+    name: Draft release ${{ inputs.tag_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: BestVPN ${{ inputs.tag_name }}
+          draft: true
+          generate_release_notes: true
+
   build:
     name: ${{ matrix.name }}
+    needs: draft-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,25 +48,21 @@ jobs:
           - name: macOS Apple Silicon
             os: macos-latest
             target: aarch64-apple-darwin
-            artifact: bestvpn-macos-arm64
             bundles: target/aarch64-apple-darwin/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/dmg/*.dmg
           - name: macOS Intel
             os: macos-latest
             target: x86_64-apple-darwin
-            artifact: bestvpn-macos-x64
             bundles: target/x86_64-apple-darwin/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/dmg/*.dmg
           - name: Windows x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: bestvpn-windows-x64
-            bundles: target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/nsis/*.exe
+            bundles: target/x86_64-pc-windows-msvc/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/nsis/*.exe
           - name: Linux x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            artifact: bestvpn-linux-x64
             bundles: |
-              target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/deb/*.deb
-              target/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/rpm/*.rpm
+              target/x86_64-unknown-linux-gnu/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/deb/*.deb
+              target/x86_64-unknown-linux-gnu/${{ inputs.profile == 'fast' && 'fast-release' || 'release' }}/bundle/rpm/*.rpm
 
     steps:
       - name: Check out repository
@@ -66,17 +80,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 24.19.0
           cache: pnpm
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10
-          run_install: false
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -87,9 +100,9 @@ jobs:
           HUSKY: '0'
           CARGO_INCREMENTAL: '0'
 
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@v7
+      - name: Attach installer to draft release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.bundles }}
-          if-no-files-found: error
+          tag_name: ${{ inputs.tag_name }}
+          draft: true
+          files: ${{ matrix.bundles }}

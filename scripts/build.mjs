@@ -92,10 +92,8 @@ function getHostTriple() {
 }
 
 /** Directory that will hold bundles for a given target + cargo profile. */
-const BUNDLE_DIR = (target, profile, isNative) =>
-  isNative
-    ? join(ROOT, 'target', profile, 'bundle')
-    : join(ROOT, 'target', target, profile, 'bundle')
+const BUNDLE_DIR = (target, profile) =>
+  join(ROOT, 'target', target, profile, 'bundle')
 
 function fail(message) {
   log_error(message)
@@ -249,10 +247,7 @@ if (!existsSync(join(ROOT, 'node_modules'))) {
 
 // 1. Download the matching mihomo core + service binaries for the target.
 if (!options.skipPrebuild) {
-  const prebuildArgs = ['run', 'prebuild']
-  if (!isNative) {
-    prebuildArgs.push(target)
-  }
+  const prebuildArgs = ['run', 'prebuild', target]
   if (options.force) {
     prebuildArgs.push('--force')
   }
@@ -260,10 +255,7 @@ if (!options.skipPrebuild) {
 }
 
 // 2. Build the Tauri app (frontend is compiled by the beforeBuildCommand hook).
-const buildArgs = ['exec', 'tauri', 'build']
-if (!isNative) {
-  buildArgs.push('--target', target)
-}
+const buildArgs = ['exec', 'tauri', 'build', '--target', target]
 if (options.profile === 'fast') {
   buildArgs.push('--', '--profile', 'fast-release')
 } else if (options.profile !== 'release') {
@@ -276,7 +268,7 @@ run('pnpm', buildArgs, {
 
 // 3. Report the outputs.
 log_success('Build finished.')
-log_info(`Bundles are under: ${BUNDLE_DIR(target, options.profile, isNative)}`)
+log_info(`Bundles are under: ${BUNDLE_DIR(target, options.profile)}`)
 if (targetOS === 'macos') {
   log_info('  macOS:  bundle/macos/*.app  and  bundle/dmg/*.dmg')
 } else if (targetOS === 'windows') {
